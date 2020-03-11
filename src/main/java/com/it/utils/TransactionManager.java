@@ -1,5 +1,6 @@
 package com.it.utils;
 
+import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -19,7 +20,7 @@ public class TransactionManager {
     /**
      * 開啟事務
      */
-    @Before("pt1()")
+    //@Before("pt1()")
     public void beginTransaction(){
         try{
             connectionUtils.getThreadConnection().setAutoCommit(false);
@@ -31,7 +32,7 @@ public class TransactionManager {
     /**
      * 提交事務
      */
-    @AfterReturning("pt1()")
+    //@AfterReturning("pt1()")
     public void commit(){
         try{
             connectionUtils.getThreadConnection().commit();
@@ -43,7 +44,7 @@ public class TransactionManager {
     /**
      * 回滾事務
      */
-    @AfterThrowing("pt1()")
+    //@AfterThrowing("pt1()")
     public void rollback(){
         try{
             connectionUtils.getThreadConnection().rollback();
@@ -55,13 +56,36 @@ public class TransactionManager {
     /**
      * 釋放連接
      */
-    @After("pt1()")
+    //@After("pt1()")
     public void release(){
         try{
             connectionUtils.getThreadConnection().close();//不是真的關了 是還回連接池中
             connectionUtils.removeConnection();
         }catch(Exception e){
             e.printStackTrace();
+        }
+    }
+    @Around("pt1()")
+    public Object aroundAdvice(ProceedingJoinPoint pjp){
+        Object rtValue = null;
+
+        try{
+            //1. 獲取參數
+            Object[] args = pjp.getArgs();
+            //2. 啟動事務
+            this.beginTransaction();
+            //3. 執行方法
+            rtValue = pjp.proceed(args);
+            //4. 提交事務
+            this.commit();
+            return rtValue;
+        } catch(Throwable t){
+            //5. 回滾事務
+            this.rollback();
+            throw new RuntimeException(t);
+        }finally{
+            //6. 釋放資源
+            this.release();
         }
     }
 }
